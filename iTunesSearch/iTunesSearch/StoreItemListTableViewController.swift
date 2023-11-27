@@ -8,8 +8,9 @@ class StoreItemListTableViewController: UITableViewController {
     @IBOutlet var filterSegmentedControl: UISegmentedControl!
     
     // add item controller property
+    var itemControllerPropery = StoreItemController()
     
-    var items = [String]()
+    var items = [StoreItem]()
     var imageLoadTasks: [IndexPath: Task<Void, Never>] = [:]
     
     let queryOptions = ["movie", "music", "software", "ebook"]
@@ -31,9 +32,25 @@ class StoreItemListTableViewController: UITableViewController {
             
             // set up query dictionary
             
+            let termQueryItem = URLQueryItem(name: "term", value: searchTerm)
+            let mediaQueryItem = URLQueryItem(name: "media", value: mediaType)
+            let langQueryItem = URLQueryItem(name: "lang", value: "en_us")
+
+            
             // use the item controller to fetch items
             // if successful, use the main queue to set self.items and reload the table view
             // otherwise, print an error to the console
+            
+            Task {
+                do {
+                let fetchedItems = try await itemControllerPropery.fetchItems(matching: [termQueryItem, mediaQueryItem, langQueryItem])
+                self.items = fetchedItems
+                tableView.reloadData()
+                    
+                } catch {
+                    print("failure")
+                }
+            }
         }
     }
     
@@ -42,16 +59,27 @@ class StoreItemListTableViewController: UITableViewController {
         let item = items[indexPath.row]
         
         // set cell.name to the item's name
-        
+        cell.name = item.name
         // set cell.artist to the item's artist
-        
+        cell.artist = item.artist
         // set cell.artworkImage to nil
-        
         // initialize a network task to fetch the item's artwork keeping track of the task
         // in imageLoadTasks so they can be cancelled if the cell will not be shown after
         // the task completes.
         //
         // if successful, set the cell.artworkImage using the returned image
+        
+        imageLoadTasks[indexPath] = Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: URL(string: item.artworkURL)!)
+                print(data)
+                let image = UIImage(data: data)
+                cell.artworkImage = image
+            } catch {
+                print("Error Image failed to parse")
+            }
+            imageLoadTasks[indexPath] = nil
+        }
     }
     
     @IBAction func filterOptionUpdated(_ sender: UISegmentedControl) {
